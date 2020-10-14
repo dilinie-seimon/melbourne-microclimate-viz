@@ -1,0 +1,284 @@
+---
+title: "data-exploration"
+author: "dilinieseimon"
+date: "25/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readr)
+library(lubridate)
+library(kableExtra)
+library(GGally)
+```
+
+```{r}
+sensor_locations <- read_csv(here::here("Data/Microclimate_Sensor_Locations.csv"))
+sensor_readings <- read_csv(here::here("Data/Microclimate_Sensor_Readings.csv"))
+```
+
+```{r data-dictionary, eval=FALSE}
+sensor_locations %>%
+  head() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped")
+
+
+data.frame(
+    "Variable" = names(sensor_locations),
+    "Description" = c("unique identifier of site",
+                      "address of site",
+                      "date and time of last observation",
+                      "latitude coordinate of site location",
+                      "longitude coordinate of site location",
+                      "coordinates of site location"), 
+    check.names = FALSE, row.names = NULL
+  ) %>%
+    kable() %>%
+    kable_styling(bootstrap_options = c("striped"))
+```
+
+```{r data-ranges, eval=FALSE}
+#data ranges
+
+data.frame(
+    "Measurement" = c("Ambient Air Temperature",
+                   "Relative Humidity",
+                   "Barometric Pressure",
+                   "Density of particulate matter in the air (less than 2.5μm in diameter)",
+                   "Density of particulate matter in the air (less than 10μm in diameter)",
+                   "Average Wind Speed"),
+    "Minimum Value" = c("-40.0", "0.0", "10.0", "0.0", "0.0", "0.0"),
+    "Maximum Value" = c("85.0", "100.0", "2000.0", "999.9", "1999.9", "160.0"),
+    "Unit of Measurement" = c("°C",
+                              "%",
+                              "hPa",
+                              "μg/m^3^",
+                              "μg/m^3^",
+                              "km/h"),
+    check.names = FALSE, row.names = NULL
+  ) %>%
+    kable() %>%
+    kable_styling(bootstrap_options = c("striped"))
+```
+
+
+```{r}
+# converting date time from char to dttm format
+sensor_readings <- sensor_readings %>%
+  mutate(date_time = parse_date_time(local_time,'%Y %m %d %I:%M:%S %p')) %>%
+  select(-local_time)
+
+hourly_avg <- sensor_readings %>%
+  filter(grepl("EPA", sensor_id)& !grepl("24h", sensor_id)
+         & !(type %in% c("PM2.5-EPA-1h","PM2.5-EPA-1h-PKIND", "PM10-EPA-1h", "PM10-EPA-1h-PKIND"))) %>%
+  select(-id,-sensor_id, -units) %>%
+  pivot_wider(names_from = type,
+              values_from = value) %>%
+  rename("pariculate_density_2.5" = "PM2.5-EPA-1h-NOPK",
+         "pariculate_density_10" = "PM10-EPA-1h-NOPK",
+         "ambient_air_temperature" = "TPH.TEMP-EPA-1h",
+         "relative_humidity" = "TPH.RH-EPA-1h")
+
+
+rolling_avg_24h <- sensor_readings %>%
+  filter(grepl("EPA", sensor_id) & grepl("24h", sensor_id)
+         & type %in% c("PM2.5-EPA-1h-NOPK-EPA-24h", "PM10-EPA-1h-NOPK-EPA-24h")) %>%
+  select(-id,-sensor_id,-units) %>%
+  pivot_wider(names_from = type,
+              values_from = value)%>%
+  rename("particulate_density_2.5" = "PM2.5-EPA-1h-NOPK-EPA-24h",
+         "particulate_density_10" = "PM10-EPA-1h-NOPK-EPA-24h")
+
+quarter_hour_readings <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  pivot_wider(names_from = sensor_id,
+              values_from = value) %>%
+  unnest(c("5a", "5b", "5c", "6", "0a", "0b")) %>%
+  rename("ambient_air_temperature" ="5a",
+         "relative_humidy" = "5b",
+         "barometric_pressure" = "5c",
+         "particulate_density_2.5" = "0a",
+         "particulate_density_10" = "0b",
+         "average_wind_speed" = "6")
+```
+
+
+
+```{r eval=FALSE}
+library(visdat)
+
+readings <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  pivot_wider(names_from = sensor_id,
+              values_from = value) %>%
+  unnest(c("5a", "5b", "5c", "6", "0a", "0b"))
+
+vis_dat(readings, warn_large_data = FALSE)
+
+
+x <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  pivot_wider(names_from = sensor_id,
+              values_from = value)
+
+
+```
+
+
+```{r eval=FALSE}
+library(GGally)
+
+ggscatmat(quarter_hour_readings, columns=3:8, col=site_id, alpha=0.5) + 
+ # scale_colour_ochre("",palette="nolan_ned") + 
+  theme(aspect.ratio=1)
+
+```
+
+```{r eval = FALSE}
+x <- ggpairs(quarter_hour_readings,
+        columns=3:8,
+        columnLabels = c("Ambient Air Temperature","Relative Humidity", "Barometric Pressure", "Average Wind Speed","Particulate Density","Particulate Density10"),
+        labeller = label_wrap_gen(15)) +
+  theme_light() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+```{r eval=FALSE, fig.height=8}
+my_fn <- function(data, mapping, method="p", use="pairwise", ...){
+
+              # grab data
+              x <- eval_data_col(data, mapping$x)
+              y <- eval_data_col(data, mapping$y)
+
+              # calculate correlation
+              corr <- cor(x, y, method=method, use=use)
+
+              # calculate colour based on correlation value
+              # Here I have set a correlation of minus one to blue, 
+              # zero to white, and one to red 
+              # Change this to suit: possibly extend to add as an argument of `my_fn`
+              colFn <- colorRampPalette(c("#3B9AB2", "#EEEEEE", "#F21A00"), interpolate ='spline')
+              fill <- colFn(100)[findInterval(corr, seq(-1, 1, length=100))]
+
+              ggally_cor(data = data, mapping = mapping, ...) + 
+                theme_void() +
+                theme(panel.background = element_rect(fill=fill))
+}
+
+p1 <- ggpairs((quarter_hour_readings %>% select(-site_id, -date_time)),
+              upper = list(continuous = my_fn),
+              lower = list(continuous = "smooth"),
+              columnLabels = c("Ambient Air Temperature","Relative Humidity", "Barometric Pressure", "Average Wind Speed", "Particulate Density <2.5","Particulate Density <10"),
+              labeller = label_wrap_gen(15)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1))
+
+p1
+```
+
+```{r fig.height=4, fig.width=10}
+  ggplot(data = data.frame(ftitle = "Ambient Air Temperature")) + 
+  facet_wrap(~ ftitle) +  geom_smooth(data = quarter_hour_readings,
+              aes(x = date_time,
+             y = ambient_air_temperature,
+             color = site_id)) +
+  scale_colour_manual(name = "Site",
+                      labels = c("Between 87 and 89 Grattan Street, Carlton",
+                                 "Corner of Swanston and Grattan Streets, Carlton",
+                                 "Corner of Pelham and Leicester Streets, Carlton",
+                                 "141 Grattan Street, Carlton",
+                                 "3/121 Grattan Street, Carlton"),
+                      values=c("#E15759",
+                               "#59A14F",
+                               "#76B7B2",
+                               "#F28E2B",
+                               "#4E79A7")) +
+  theme_minimal() +
+  theme(legend.position="bottom", legend.direction="vertical") +
+  labs(x = "",
+       y = "°C")+ 
+  scale_x_datetime(date_breaks = "months" , date_labels = "%b-%y")
+```
+
+
+
+c("°C",
+                              "%",
+                              "hPa",
+                              "μg/m^3^",
+                              "μg/m^3^",
+                              "km/h"),
+
+```{r fig.height=5}
+addline_format <- function(x,...){
+    gsub('\\s','\n',x)
+}
+sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  ggplot(aes(x = sensor_id, y = value)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x = "Microclimatic Condition",
+       y = "Observed reading") +
+  scale_x_discrete(labels= addline_format(c("Particle Density (<2.5μm)",
+                             "Particle Density (<10μm)",
+                             "Ambient Air Temperature",
+                             "Relative Humidity",
+                             "Barometric Pressure",
+                             "Average Wind Speed")))
+
+```
+
+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+addline_format <- function(x,...){
+    gsub('\\s','\n',x)
+}
+
+myplot + 
+    scale_x_discrete(breaks=unique(df_M$variable), 
+    labels=addline_format(c("Ambystoma mexicanum", 
+                        "Daubentonia madagascariensis", "Psychrolutes marcidus")))
+
+("Ambient Air Temperature",
+                   "Relative Humidity",
+                   "Barometric Pressure",
+                   "Density of particulate matter in the air (less than 2.5μm in diameter)",
+                   "Density of particulate matter in the air (less than 10μm in diameter)",
+                   "Average Wind Speed")
+
+
+```
+
+```{r}
+hour_date <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id) & !is.na(value)) %>%
+  filter(sensor_id == "0a") %>%
+  select(-id, -units, -type) %>%
+  mutate(hour = hour(date_time),
+         date = date(date_time)) %>%
+  group_by(sensor_id,hour,date) %>%
+  summarise(hourly_avg=mean(value))
+
+hour_date <- sensor_readings %>%
+  ggplot(aes(x = hour,
+             y = hourly_avg,
+             color = date)) +
+  geom_line() #+
+  facet_wrap(~sensor_id)
+  
+write_csv(hour_date,here::here("Data/summarised_hourly_data.csv"))
+
+```
+
+

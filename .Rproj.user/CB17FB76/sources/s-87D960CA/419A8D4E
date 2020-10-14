@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1602634675221.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "419A8D4E",
+    "lastKnownWriteTime" : 1602231739,
+    "last_content_update" : 1602231739,
+    "path" : "D:/Monash/Coursework/Semester2/ETC5523 -Communicating-with-Data/Assignments/Shiny-Assesment/shiny-assessment-dilinie-seimon/app.R",
+    "project_path" : null,
+    "properties" : {
+        "cursorPosition" : "138,2",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

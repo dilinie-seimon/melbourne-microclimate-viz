@@ -1,0 +1,13 @@
+"0","sensor_readings <- read_csv(here::here(""Data/Microclimate_Sensor_Readings.csv""))
+"
+"2","Parsed with column specification:
+cols(
+  id = [32mcol_double()[39m,
+  site_id = [31mcol_character()[39m,
+  sensor_id = [31mcol_character()[39m,
+  value = [32mcol_double()[39m,
+  local_time = [31mcol_character()[39m,
+  type = [31mcol_character()[39m,
+  units = [31mcol_character()[39m
+)
+"

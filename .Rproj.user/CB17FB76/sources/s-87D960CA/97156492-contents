@@ -1,0 +1,79 @@
+#Student Id : 31291996
+#Student Name : A. Dilinie Angela Seimon
+
+library(shiny)
+library(leaflet)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+
+sensor_data <- read_csv(here::here("Data/all_sensor_data.csv"))
+avg_hourly_counts <- sensor_data %>%
+  group_by(Sensor_Name,
+           latitude,
+           longitude) %>%
+  summarise(avg_hourly_count = mean(Hourly_Counts))
+
+
+
+ui <- fluidPage(
+  
+  titlePanel("Pedestrian patterns in Melbourne (2019)"),
+  fluidRow(
+    column(6,
+           leafletOutput("melbmap")
+    ),
+    column(3,
+           fluidRow(
+             selectInput("sensor", label = "Sensor", choices = avg_hourly_counts$Sensor_Name)
+           ),
+           fluidRow(
+             plotOutput("daytrendplot")
+           )
+    ),
+    column(3)
+  )
+  
+)
+
+
+
+server <- function(input, output, session) {
+
+  
+  output$melbmap <- renderLeaflet({
+    leaflet(avg_hourly_counts) %>%
+      addTiles() %>%
+      addCircleMarkers(
+        layerId = ~Sensor_Name,
+        label = ~Sensor_Name,
+        radius = ~avg_hourly_count/80
+      ) %>%
+      fitBounds(lng1 = max(avg_hourly_counts$longitude) ,lat1 = max(avg_hourly_counts$latitude),
+                lng2 = min(avg_hourly_counts$longitude) ,lat2 = min(avg_hourly_counts$latitude))
+  })
+  
+  output$daytrendplot <- renderPlot({
+      sensor_data %>%
+        filter(Sensor_Name == input$sensor) %>%
+        group_by(Time, Day) %>%
+        summarise(avg_count = mean(Hourly_Counts)) %>%
+        ggplot(aes(x = Time, y = avg_count))+
+        geom_line() +
+        #geom_smooth() +
+        facet_wrap(~factor(Day, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")), ncol = 1) +
+        labs(x = "Time of day",
+             y = "Average Hourly Pedestrian Count")
+  })
+  
+  observeEvent(input$melbmap_marker_click, {
+    click <- input$melbmap_marker_click
+    updateSelectInput(session, "sensor", label = "Sensor", 
+                      choices = avg_hourly_counts$Sensor_Name, 
+                      selected = c(input$sensor, click$id))
+  })
+
+}
+
+
+shinyApp(ui, server)

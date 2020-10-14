@@ -1,0 +1,17 @@
+"0","quarter_hour_readings <- sensor_readings %>%
+  filter(!grepl(""EPA"", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  pivot_wider(names_from = sensor_id,
+              values_from = value) %>%
+  unnest(c(""5a"", ""5b"", ""5c"", ""6"", ""0a"", ""0b"")) %>%
+  rename(""ambient_air_temperature"" =""5a"",
+         ""relative_humidy"" = ""5b"",
+         ""barometric_pressure"" = ""5c"",
+         ""particulate_density_2.5"" = ""0a"",
+         ""particulate_density_10"" = ""0b"",
+         ""average_wind_speed"" = ""6"")
+"
+"2","Values are not uniquely identified; output will contain list-cols.
+* Use `values_fn = list` to suppress this warning.
+* Use `values_fn = length` to identify where the duplicates arise
+* Use `values_fn = {summary_fun}` to summarise duplicates"

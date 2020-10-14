@@ -1,0 +1,13 @@
+"0","ggplotly(
+  hourly_avg %>%
+    ggplot(aes(x = datetime, y = hourly_avg, color = site_id)) +
+    geom_line() +
+    facet_wrap(~sensor_id, scales = ""free"", ncol = 1) +
+    theme_minimal()
+  )
+"
+"2","`group_by_()` is deprecated as of dplyr 0.7.0.
+Please use `group_by()` instead.
+See vignette('programming') for more help
+[90mThis warning is displayed once every 8 hours.[39m
+[90mCall `lifecycle::last_warnings()` to see where this warning was generated.[39m"

@@ -1,0 +1,6 @@
+"0","xx <- quarter_hour_readings %>% select(c(""site_id"", ""date_time"",""latitude"", ""longitude"",""ambient_air_temperature"",""relative_humidy"",""barometric_pressure"", ""average_wind_speed"", ""particulate_density_2.5"", ""particulate_density_10""))
+"
+"2","Error: unexpected symbol in:
+""xx <- quarter_hour_readings %>% select(c(""site_id"", ""date_time"",""latitude"", ""longitude"",""ambient_air_temperature"",""relative_humidy"",""barometric_pressure"", ""average_wind_speed"", ""particulate_de
+xx""
+"

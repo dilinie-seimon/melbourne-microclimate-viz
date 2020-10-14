@@ -1,0 +1,111 @@
+---
+title: "tests"
+author: "dilinieseimon"
+date: "14/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+```
+
+```{r}
+## Install the required package with:
+## install.packages("RSocrata")
+library("RSocrata")
+
+locations <- read.socrata(
+  "https://data.melbourne.vic.gov.au/resource/irqv-hjr4.json"
+)
+
+
+readings <- read.socrata(
+  "https://data.melbourne.vic.gov.au/resource/u4vh-84j8.json"
+)
+```
+
+
+```{r}
+sensor_locations <- read_csv(here::here("Data/Microclimate_Sensor_Locations.csv"))
+sensor_readings <- read_csv(here::here("Data/Microclimate_Sensor_Readings.csv"))
+```
+
+```{r}
+# converting date time from char to dttm format
+sensor_readings <- sensor_readings %>%
+  mutate(date_time = parse_date_time(local_time,'%Y %m %d %I:%M:%S %p')) %>%
+  select(-local_time)
+
+hourly_avg <- sensor_readings %>%
+  filter(grepl("EPA", sensor_id)& !grepl("24h", sensor_id)
+         & !(type %in% c("PM2.5-EPA-1h","PM2.5-EPA-1h-PKIND", "PM10-EPA-1h", "PM10-EPA-1h-PKIND"))) %>%
+  select(-id,-sensor_id, -units) %>%
+  pivot_wider(names_from = type,
+              values_from = value) %>%
+  rename("pariculate_density_2.5" = "PM2.5-EPA-1h-NOPK",
+         "pariculate_density_10" = "PM10-EPA-1h-NOPK",
+         "ambient_air_temperature" = "TPH.TEMP-EPA-1h",
+         "relative_humidity" = "TPH.RH-EPA-1h")
+
+
+rolling_avg_24h <- sensor_readings %>%
+  filter(grepl("EPA", sensor_id) & grepl("24h", sensor_id)
+         & type %in% c("PM2.5-EPA-1h-NOPK-EPA-24h", "PM10-EPA-1h-NOPK-EPA-24h")) %>%
+  select(-id,-sensor_id,-units) %>%
+  pivot_wider(names_from = type,
+              values_from = value)%>%
+  rename("particulate_density_2.5" = "PM2.5-EPA-1h-NOPK-EPA-24h",
+         "particulate_density_10" = "PM10-EPA-1h-NOPK-EPA-24h")
+
+quarter_hour_readings <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  select(-id, -units, -type) %>%
+  pivot_wider(names_from = sensor_id,
+              values_from = value) %>%
+  unnest(c("5a", "5b", "5c", "6", "0a", "0b")) %>%
+  rename("ambient_air_temperature" ="5a",
+         "relative_humidy" = "5b",
+         "barometric_pressure" = "5c",
+         "particulate_density_2.5" = "0a",
+         "particulate_density_10" = "0b",
+         "average_wind_speed" = "6")
+```
+
+```{r}
+library(ggplot2)
+library(fmsb)
+library(plotly)
+
+
+dat <- rbind(c(85.00,100.00,2000.00,160.00,999.9,1999.9),
+      c(-40.00,0.00,10.00,0.00,0.00,0.00),
+      quarter_hour_readings %>%
+        filter(date_time == as.POSIXct("2019-11-15 09:15:00",tz="UTC")) %>%
+        column_to_rownames(var="site_id") %>%
+        select(c("ambient_air_temperature","relative_humidy","barometric_pressure", "average_wind_speed", "particulate_density_2.5", "particulate_density_10")))
+  
+radarchart(dat)
+
+
+xx <- quarter_hour_readings %>% select("site_id", "date_time","latitude", "longitude","ambient_air_temperature","relative_humidy","barometric_pressure", "average_wind_speed", "particulate_density_2.5", "particulate_density_10")
+```
+
+```{r}
+hourly_avg <- sensor_readings %>%
+  filter(!grepl("EPA", sensor_id)) %>%
+  mutate(datetime =  parse_date_time(format(date_time, "%Y-%m-%d %H:00"),'%Y %m %d %H:%M')) %>%
+  select(-id, -units, -type) %>%
+  group_by(site_id, sensor_id, datetime) %>%
+  summarise(hourly_avg = mean(value))
+
+ggplotly(
+  hourly_avg %>%
+    ggplot(aes(x = datetime, y = hourly_avg, color = site_id)) +
+    geom_line() +
+    facet_wrap(~sensor_id, scales = "free", ncol = 1) +
+    theme_minimal()
+  )
+
+```
+
